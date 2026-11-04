@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D 가상 전자회로 실험실</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Three.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Google Fonts Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    /* Custom scrollbar for clean panel aesthetics */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.8); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 1); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen flex flex-col overflow-hidden select-none">
+  <!-- Header Bar -->
+  <header class="bg-slate-900/95 border-b border-slate-800/80 px-5 py-3 flex items-center justify-between z-20 shadow-lg backdrop-blur-md">
+    <div class="flex items-center space-x-3.5">
+      <div class="bg-gradient-to-tr from-blue-600 to-cyan-500 p-2.5 rounded-xl text-white shadow-lg shadow-blue-500/20">
+        <i class="fa-solid fa-microchip text-base"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-sm tracking-wide bg-gradient-to-r from-blue-400 via-cyan-300 to-teal-300 bg-clip-text text-transparent">3D 가상 전자회로 실험실</h1>
+        <p class="text-[11px] text-slate-400 font-medium">Interactive Circuit Simulation Laboratory</p>
+      </div>
+    </div>
+
+    <!-- Center Interaction Mode Toolbar -->
+    <div class="flex items-center space-x-1.5 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 shadow-inner">
+      <button onclick="setEditMode('move')" id="modeMoveBtn" class="px-3.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold flex items-center space-x-2 transition shadow-sm">
+        <i class="fa-solid fa-up-down-left-right text-xs"></i>
+        <span>이동 모드</span>
+      </button>
+      <button onclick="setEditMode('wire')" id="modeWireBtn" class="px-3.5 py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-300 rounded-lg text-xs font-semibold flex items-center space-x-2 transition">
+        <i class="fa-solid fa-arrow-pointer text-xs"></i>
+        <span>전선 연결 (핀-투-핀)</span>
+      </button>
+      <button onclick="setEditMode('delete')" id="modeDeleteBtn" class="px-3.5 py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-300 rounded-lg text-xs font-semibold flex items-center space-x-2 transition">
+        <i class="fa-solid fa-trash-can text-xs"></i>
+        <span>삭제 모드</span>
+      </button>
+    </div>
+
+    <!-- Right Utility Controls -->
+    <div class="flex items-center space-x-2.5">
+      <button onclick="toggleSimulation()" id="simRunBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center space-x-2 transition shadow-lg shadow-emerald-600/20">
+        <i class="fa-solid fa-play"></i>
+        <span id="simRunText">회로 시뮬레이션 ON</span>
+      </button>
+      <button onclick="toggleThermalMode()" id="thermalBtn" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-xs font-medium flex items-center space-x-2 transition text-slate-300 shadow-sm">
+        <i class="fa-solid fa-temperature-high text-orange-400"></i>
+        <span>열화상: <strong id="thermalStatus" class="text-slate-400 font-bold">OFF</strong></span>
+      </button>
+      <button onclick="resetCamera()" class="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-xs font-medium flex items-center space-x-2 transition text-slate-300 shadow-sm">
+        <i class="fa-solid fa-video text-blue-400"></i>
+        <span>시점 초기화</span>
+      </button>
+      <button onclick="clearCircuit()" class="px-3.5 py-2 bg-red-950/40 hover:bg-red-900/50 border border-red-800/50 rounded-xl text-xs font-medium text-red-300 transition flex items-center space-x-2 shadow-sm">
+        <i class="fa-solid fa-rotate-right"></i>
+        <span>회로 초기화</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <div class="flex-1 flex overflow-hidden relative">
+    <!-- Component Palette Sidebar -->
+    <aside class="w-80 bg-slate-900/90 border-r border-slate-800 flex flex-col z-10 backdrop-blur-md">
+      <div class="p-4 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/50">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center">
+          <i class="fa-solid fa-layer-group text-blue-400 mr-2 text-sm"></i> 부품 카탈로그
+        </span>
+        <span class="text-[10px] bg-blue-950 text-blue-300 px-2.5 py-1 rounded-full border border-blue-800/80 font-semibold shadow-sm">실험 소자</span>
+      </div>
+      <div class="flex-1 overflow-y-auto p-3.5 space-y-5">
+        <!-- 1. 수동소자 -->
+        <div>
+          <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center px-1">
+            <i class="fa-solid fa-grip-lines mr-2 text-amber-400"></i> 수동소자 (Passive)
+          </h3>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="spawnComponent('resistor')" class="p-3 bg-slate-850 hover:bg-slate-800 hover:border-blue-500/60 border border-slate-800 rounded-xl text-left transition group flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between w-full mb-2">
+                <i class="fa-solid fa-grip-lines text-amber-400 text-base"></i>
+                <span class="text-[10px] bg-blue-950/80 text-blue-400 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition font-semibold">+ 추가</span>
+              </div>
+              <span class="text-xs font-semibold text-slate-200">저항기</span>
+            </button>
+            <button onclick="spawnComponent('capacitor')" class="p-3 bg-slate-850 hover:bg-slate-800 hover:border-blue-500/60 border border-slate-800 rounded-xl text-left transition group flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between w-full mb-2">
+                <i class="fa-solid fa-battery-half text-cyan-400 text-base"></i>
+                <span class="text-[10px] bg-blue-950/80 text-blue-400 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition font-semibold">+ 추가</span>
+              </div>
+              <span class="text-xs font-semibold text-slate-200">콘덴서</span>
+            </button>
+            <button onclick="spawnComponent('potentiometer')" class="p-3 bg-slate-850 hover:bg-slate-800 hover:border-blue-500/60 border border-slate-800 rounded-xl text-left transition group flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between w-full mb-2">
+                <i class="fa-solid fa-sliders text-emerald-400 text-base"></i>
+                <span class="text-[10px] bg-blue-950/80 text-blue-400 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition font-semibold">+ 추가</span>
+              </div>
+              <span class="text-xs font-semibold text-slate-200">가변저항</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. 능동소자 및 반도체 -->
+        <div>
+          <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center px-1">
+            <i class="fa-solid fa-bolt mr-2 text-yellow-400"></i> 능동소자 및 반도체
+          </h3>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="spawnComponent('led')" class="p-3 bg-slate-850 hover:bg-slate-800 hover:border-blue-500/60 border border-slate-800 rounded-xl text-left transition group flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between w-full mb-2">
+                <i class="fa-solid fa-lightbulb text-red-400 text-base"></i>
+                <span class="text-[10px] bg-blue-950/80 text-blue-400 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition font-semibold">+ 추가</span>
+              </div>
+              <span class="text-xs font-semibold text-slate-200">발광다이오드</span>
+            </button>
+            <button onclick="spawnComponent('transistor')" class="p-3 bg-slate-850 hover:bg-slate-800 hover:border-blue-500/60 border border-slate-800 rounded-xl text-left transition group flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between w-full mb-2">
+                <i class="fa-solid fa-microchip text-indigo-400 text-base"></i>
+                <span class="text-[10px] bg-blue-950/80 text-blue-400 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition font-semibold">+ 추가</span>
+              </div>
+              <span class="text-xs font-semibold text-slate-200">트랜지스터</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. 센서 및 입력 장치 -->
+        <div>
+          <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center px-1">
+            <i class="fa-solid fa-hand-pointer mr-2 text-cyan-400"></i> 센서 및 입력 장치
+          </h3>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="spawnComponent('pushbutton')" class="p-3 bg-slate-850 hover:bg-slate-800 hover:border-blue-500/60 border border-slate-800 rounded-xl text-left transition group flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between w-full mb-2">
+                <i class="fa-solid fa-toggle-off text-sky-400 text-base"></i>
+                <span class="text-[10px] bg-blue-950/80 text-blue-400 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition font-semibold">+ 추가</span>
+              </div>
+              <span class="text-xs font-semibold text-slate-200">푸시 스위치</span>
+            </button>
+            <button onclick="spawnComponent('cds')" class="p-3 bg-slate-850 hover:bg-slate-800 hover:border-blue-500/60 border border-slate-800 rounded-xl text-left transition group flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between w-full mb-2">
+                <i class="fa-solid fa-sun text-amber-300 text-base"></i>
+                <span class="text-[10px] bg-blue-950/80 text-blue-400 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition font-semibold">+ 추가</span>
+              </div>
+              <span class="text-xs font-semibold text-slate-200">조도 센서</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4. 출력 및 액추에이터 -->
+        <div>
+          <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center px-1">
+            <i class="fa-solid fa-volume-high mr-2 text-pink-400"></i> 출력 및 액추에이터
+          </h3>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="spawnComponent('buzzer')" class="p-3 bg-slate-850 hover:bg-slate-800 hover:border-blue-500/60 border border-slate-800 rounded-xl text-left transition group flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between w-full mb-2">
+                <i class="fa-solid fa-bell text-pink-400 text-base"></i>
+                <span class="text-[10px] bg-blue-950/80 text-blue-400 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition font-semibold">+ 추가</span>
+              </div>
+              <span class="text-xs font-semibold text-slate-200">피에조 부저</span>
+            </button>
+            <button onclick="spawnComponent('motor')" class="p-3 bg-slate-850 hover:bg-slate-800 hover:border-blue-500/60 border border-slate-800 rounded-xl text-left transition group flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between w-full mb-2">
+                <i class="fa-solid fa-fan text-emerald-400 text-base"></i>
+                <span class="text-[10px] bg-blue-950/80 text-blue-400 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition font-semibold">+ 추가</span>
+              </div>
+              <span class="text-xs font-semibold text-slate-200">DC 모터</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 5. 전원 -->
+        <div>
+          <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center px-1">
+            <i class="fa-solid fa-car-battery mr-2 text-green-400"></i> 전원 공급장치
+          </h3>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="spawnComponent('battery')" class="p-3 bg-slate-850 hover:bg-slate-800 hover:border-blue-500/60 border border-slate-800 rounded-xl text-left transition group flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between w-full mb-2">
+                <i class="fa-solid fa-car-battery text-red-400 text-base"></i>
+                <span class="text-[10px] bg-blue-950/80 text-blue-400 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition font-semibold">+ 추가</span>
+              </div>
+              <span class="text-xs font-semibold text-slate-200">9V 배터리</span>
+            </button>
+            <button onclick="spawnComponent('arduino')" class="p-3 bg-slate-850 hover:bg-slate-800 hover:border-blue-500/60 border border-slate-800 rounded-xl text-left transition group flex flex-col justify-between shadow-sm">
+              <div class="flex items-center justify-between w-full mb-2">
+                <i class="fa-solid fa-microchip text-teal-400 text-base"></i>
+                <span class="text-[10px] bg-blue-950/80 text-blue-400 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition font-semibold">+ 추가</span>
+              </div>
+              <span class="text-xs font-semibold text-slate-200">아두이노 Uno</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 3D Canvas Container -->
+    <div class="flex-1 relative bg-slate-950" id="canvasContainer">
+      <div id="threeCanvas" class="w-full h-full"></div>
+
+      <!-- Environment Sliders (Top-Right) -->
+      <div class="absolute top-4 right-4 bg-slate-900/90 border border-slate-800 p-3.5 rounded-2xl shadow-2xl backdrop-blur-md flex flex-col space-y-3.5 w-68 z-10">
+        <div class="text-xs font-bold text-slate-200 flex items-center justify-between border-b border-slate-800 pb-2">
+          <span><i class="fa-solid fa-sliders text-blue-400 mr-2"></i> 실험 환경 제어</span>
+        </div>
+        <div>
+          <div class="flex justify-between text-[11px] text-slate-400 mb-1.5 font-medium">
+            <span>주변 조도 (Lux):</span>
+            <span id="luxVal" class="text-amber-400 font-bold">50 Lux</span>
+          </div>
+          <input type="range" min="0" max="100" value="50" oninput="updateEnvironment('lux', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500">
+        </div>
+        <div>
+          <div class="flex justify-between text-[11px] text-slate-400 mb-1.5 font-medium">
+            <span>주변 온도 (°C):</span>
+            <span id="tempVal" class="text-red-400 font-bold">25 °C</span>
+          </div>
+          <input type="range" min="-20" max="150" value="25" oninput="updateEnvironment('temp', this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500">
+        </div>
+      </div>
+
+      <!-- Bottom Status & Instructions -->
+      <div class="absolute bottom-4 left-4 bg-slate-900/90 border border-slate-800 px-4 py-2.5 rounded-xl shadow-xl backdrop-blur-md text-xs text-slate-400 flex items-center space-x-5 z-10">
+        <span class="flex items-center"><i class="fa-solid fa-circle-info text-blue-400 mr-2"></i> <span id="modeStatusText" class="font-semibold text-slate-200">현재: 이동 모드</span></span>
+        <span class="text-slate-600">|</span>
+        <span id="simStatusBadge" class="text-emerald-400 font-bold">시뮬레이션 활성</span>
+        <span class="text-slate-600">|</span>
+        <span id="fpsCounter" class="text-slate-400 font-mono font-medium">60 FPS</span>
+      </div>
+    </div>
+
+    <!-- Inspector Sidebar -->
+    <aside class="w-80 bg-slate-900/90 border-l border-slate-800 flex flex-col z-10 backdrop-blur-md">
+      <div class="p-4 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/50">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center">
+          <i class="fa-solid fa-sliders mr-2 text-cyan-400"></i> 속성 검사기
+        </span>
+        <span id="selectedId" class="text-[10px] bg-slate-800 text-cyan-300 px-2.5 py-1 rounded-md border border-slate-700 font-mono font-semibold">선택 없음</span>
+      </div>
+      <div class="flex-1 overflow-y-auto p-4 space-y-4" id="inspectorContent">
+        <div class="text-center py-16 text-slate-500">
+          <i class="fa-solid fa-cube text-4xl mb-3 text-slate-700/80"></i>
+          <p class="text-xs font-medium text-slate-400">3D 공간에서 부품을 선택하세요.</p>
+          <p class="text-[11px] text-slate-600 mt-1">회로 연결 핀 확인 및 실시간 수치를 제어합니다.</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // --- 3D Circuit Simulation Core State ---
+    let scene, camera, renderer;
+    let components = [];
+    let wires = [];
+    let selectedComponent = null;
+    let dragPlane;
+    let raycaster = new THREE.Raycaster();
+    let mouse = new THREE.Vector2();
+    let isDragging = false;
+    let dragOffset = new THREE.Vector3();
+    let editMode = 'move'; // 'move', 'wire', 'delete'
+    let thermalMode = false;
+    let simulationRunning = true;
+    let envLux = 50;
+    let envTemp = 25;
+
+    // Wiring state
+    let wireStartPin = null;
+
+    // Camera Orbit State
+    let isOrbiting = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let cameraSpherical = { radius: 25, theta: Math.PI / 4, phi: Math.PI / 3 };
+    let cameraTarget = new THREE.Vector3(0, 0, 0);
+
+    function initThree() {
+      const container = document.getElementById('threeCanvas');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x020617);
+
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+      updateCameraPosition();
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      container.appendChild(renderer.domElement);
+
+      // Lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.3);
+      dirLight.position.set(12, 22, 16);
+      dirLight.castShadow = true;
+      scene.add(dirLight);
+
+      // Breadboard Base
+      const boardGeo = new THREE.BoxGeometry(14, 0.4, 8);
+      const boardMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.25 });
+      const breadboard = new THREE.Mesh(boardGeo, boardMat);
+      breadboard.position.y = -0.2;
+      breadboard.receiveShadow = true;
+      scene.add(breadboard);
+
+      // Drag Plane for Raycasting
+      const planeGeo = new THREE.PlaneGeometry(100, 100);
+      dragPlane = new THREE.Mesh(planeGeo, new THREE.MeshBasicMaterial({ visible: false }));
+      dragPlane.rotation.x = -Math.PI / 2;
+      scene.add(dragPlane);
+
+      // Event Listeners
+      const dom = renderer.domElement;
+      dom.addEventListener('pointerdown', onPointerDown);
+      dom.addEventListener('pointermove', onPointerMove);
+      dom.addEventListener('pointerup', onPointerUp);
+      dom.addEventListener('wheel', onWheel, { passive: false });
+      window.addEventListener('resize', onWindowResize);
+
+      // Spawn Initial Working Circuit (Battery -> Resistor -> LED)
+      const bat = spawnComponent('battery', new THREE.Vector3(-4, 0, 0));
+      const res = spawnComponent('resistor', new THREE.Vector3(-1, 0, 0));
+      const led = spawnComponent('led', new THREE.Vector3(2, 0, 0));
+
+      // Auto-connect initial demo circuit pins
+      if (bat && res && led) {
+        createWire(bat.userData.pins[0], res.userData.pins[0]);
+        createWire(res.userData.pins[1], led.userData.pins[0]);
+        createWire(led.userData.pins[1], bat.userData.pins[1]);
+      }
+
+      animate();
+    }
+
+    function updateCameraPosition() {
+      camera.position.x = cameraTarget.x + cameraSpherical.radius * Math.sin(cameraSpherical.phi) * Math.sin(cameraSpherical.theta);
+      camera.position.y = cameraTarget.y + cameraSpherical.radius * Math.cos(cameraSpherical.phi);
+      camera.position.z = cameraTarget.z + cameraSpherical.radius * Math.sin(cameraSpherical.phi) * Math.cos(cameraSpherical.theta);
+      camera.lookAt(cameraTarget);
+    }
+
+    function setEditMode(mode) {
+      editMode = mode;
+      wireStartPin = null;
+      document.getElementById('modeMoveBtn').className = mode === 'move' ? 'px-3.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold flex items-center space-x-2 transition shadow-sm' : 'px-3.5 py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-300 rounded-lg text-xs font-semibold flex items-center space-x-2 transition';
+      document.getElementById('modeWireBtn').className = mode === 'wire' ? 'px-3.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold flex items-center space-x-2 transition shadow-sm' : 'px-3.5 py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-300 rounded-lg text-xs font-semibold flex items-center space-x-2 transition';
+      document.getElementById('modeDeleteBtn').className = mode === 'delete' ? 'px-3.5 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold flex items-center space-x-2 transition shadow-sm' : 'px-3.5 py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-300 rounded-lg text-xs font-semibold flex items-center space-x-2 transition';
+      
+      const textMap = { move: '이동 모드', wire: '전선 연결 (핀 클릭)', delete: '삭제 모드' };
+      document.getElementById('modeStatusText').innerText = `현재: ${textMap[mode]}`;
+    }
+
+    function toggleSimulation() {
+      simulationRunning = !simulationRunning;
+      const btn = document.getElementById('simRunBtn');
+      const badge = document.getElementById('simStatusBadge');
+      if (simulationRunning) {
+        btn.className = 'px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center space-x-2 transition shadow-lg shadow-emerald-600/20';
+        document.getElementById('simRunText').innerText = '회로 시뮬레이션 ON';
+        badge.innerText = '시뮬레이션 활성';
+        badge.className = 'text-emerald-400 font-bold';
+      } else {
+        btn.className = 'px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold flex items-center space-x-2 transition shadow-lg shadow-amber-600/20';
+        document.getElementById('simRunText').innerText = '회로 시뮬레이션 OFF';
+        badge.innerText = '시뮬레이션 정지';
+        badge.className = 'text-amber-400 font-bold';
+      }
+    }
+
+    // --- Component & Pin Spawning ---
+    function spawnComponent(type, pos = new THREE.Vector3(0, 0, 0)) {
+      const group = new THREE.Group();
+      const pins = [];
+      
+      group.userData = {
+        type: type,
+        id: type.toUpperCase() + '-' + Math.floor(Math.random() * 900 + 100),
+        value: type === 'resistor' ? '220Ω' : type === 'capacitor' ? '10µF' : type === 'battery' ? '9.0V' : type === 'buzzer' ? '5V Piezo' : 'Standard',
+        voltage: 0,
+        current: 0,
+        power: 0,
+        temp: 25,
+        burnt: false,
+        pins: pins
+      };
+
+      // Create geometry based on type
+      if (type === 'resistor') {
+        const body = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.18, 0.18, 1.0, 16),
+          new THREE.MeshStandardMaterial({ color: 0xd4b483, roughness: 0.5 })
+        );
+        body.rotation.z = Math.PI / 2;
+        group.add(body);
+
+        // Color bands
+        const bandMat1 = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const bandMat2 = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
+        const band1 = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.08, 16), bandMat1); band1.rotation.z = Math.PI / 2; band1.position.x = -0.2;
+        const band2 = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.08, 16), bandMat2); band2.rotation.z = Math.PI / 2; band2.position.x = 0.2;
+        group.add(band1, band2);
+
+        pins.push(createPin(group, new THREE.Vector3(-0.9, 0, 0), 'Cathode (-)', group.userData.id + '-P1'));
+        pins.push(createPin(group, new THREE.Vector3(0.9, 0, 0), 'Anode (+)', group.userData.id + '-P2'));
+
+      } else if (type === 'led') {
+        const domeMat = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0x330000, roughness: 0.1, transparent: true, opacity: 0.9 });
+        const dome = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16, 0, Math.PI * 2, 0, Math.PI * 1.2), domeMat);
+        dome.position.y = 0.3;
+        group.add(dome);
+
+        const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.15, 16), new THREE.MeshStandardMaterial({ color: 0xcccccc }));
+        collar.position.y = 0.12;
+        group.add(collar);
+
+        pins.push(createPin(group, new THREE.Vector3(-0.15, 0.05, 0), 'Cathode (-)', group.userData.id + '-P1'));
+        pins.push(createPin(group, new THREE.Vector3(0.15, 0.05, 0), 'Anode (+)', group.userData.id + '-P2'));
+
+      } else if (type === 'battery') {
+        const body = new THREE.Mesh(
+          new THREE.BoxGeometry(1.4, 1.0, 2.2),
+          new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.4 })
+        );
+        body.position.y = 0.5;
+        group.add(body);
+
+        // Terminals
+        const termRed = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.3, 12), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
+        termRed.position.set(-0.35, 1.15, 0.7);
+        const termBlack = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.3, 12), new THREE.MeshStandardMaterial({ color: 0x334155 }));
+        termBlack.position.set(0.35, 1.15, 0.7);
+        group.add(termRed, termBlack);
+
+        pins.push(createPin(group, new THREE.Vector3(-0.35, 1.15, 0.7), 'Positive (+)', group.userData.id + '-P1'));
+        pins.push(createPin(group, new THREE.Vector3(0.35, 1.15, 0.7), 'Negative (-)', group.userData.id + '-P2'));
+
+      } else if (type === 'buzzer') {
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.7, 24), new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.8 }));
+        body.position.y = 0.35;
+        group.add(body);
+
+        pins.push(createPin(group, new THREE.Vector3(-0.25, 0.05, 0), 'Positive (+)', group.userData.id + '-P1'));
+        pins.push(createPin(group, new THREE.Vector3(0.25, 0.05, 0), 'Negative (-)', group.userData.id + '-P2'));
+
+      } else if (type === 'motor') {
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.1, 20), new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.7 }));
+        body.rotation.z = Math.PI / 2;
+        body.position.y = 0.5;
+        group.add(body);
+
+        pins.push(createPin(group, new THREE.Vector3(0, 0.05, -0.6), 'Power (+)', group.userData.id + '-P1'));
+        pins.push(createPin(group, new THREE.Vector3(0, 0.05, 0.6), 'Ground (-)', group.userData.id + '-P2'));
+
+      } else {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.6, 1.0), new THREE.MeshStandardMaterial({ color: 0x0f766e, roughness: 0.3 }));
+        mesh.position.y = 0.3;
+        group.add(mesh);
+        pins.push(createPin(group, new THREE.Vector3(-0.4, 0.05, 0), 'Pin 1', group.userData.id + '-P1'));
+        pins.push(createPin(group, new THREE.Vector3(0.4, 0.05, 0), 'Pin 2', group.userData.id + '-P2'));
+      }
+
+      group.traverse(child => {
+        if (child.isMesh && child !== dragPlane) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+
+      group.position.copy(pos);
+      group.position.y = 0.2;
+
+      scene.add(group);
+      components.push(group);
+      selectComponent(group);
+      return group;
+    }
+
+    function createPin(parentGroup, localPos, label, pinId) {
+      const pinGeo = new THREE.SphereGeometry(0.1, 12, 12);
+      const pinMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xd97706, emissiveIntensity: 0.5 });
+      const pinMesh = new THREE.Mesh(pinGeo, pinMat);
+      pinMesh.position.copy(localPos);
+      pinMesh.userData = {
+        isPin: true,
+        pinId: pinId,
+        parentComponent: parentGroup,
+        label: label,
+        connectedWires: []
+      };
+      parentGroup.add(pinMesh);
+      return pinMesh;
+    }
+
+    // --- Wire Connection System ---
+    function createWire(pinA, pinB) {
+      if (!pinA || !pinB || pinA === pinB) return;
+      const wireData = { pinA: pinA, pinB: pinB, mesh: null };
+      
+      const worldA = new THREE.Vector3();
+      const worldB = new THREE.Vector3();
+      pinA.getWorldPosition(worldA);
+      pinB.getWorldPosition(worldB);
+
+      const curve = new THREE.LineCurve3(worldA, worldB);
+      const tubeGeo = new THREE.TubeGeometry(curve, 20, 0.03, 8, false);
+      const tubeMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.3 });
+      const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
+      scene.add(tubeMesh);
+
+      wireData.mesh = tubeMesh;
+      pinA.userData.connectedWires.push(wireData);
+      pinB.userData.connectedWires.push(wireData);
+      wires.push(wireData);
+    }
+
+    function updateWires() {
+      wires.forEach(w => {
+        if (!w.pinA || !w.pinB) return;
+        const worldA = new THREE.Vector3();
+        const worldB = new THREE.Vector3();
+        w.pinA.getWorldPosition(worldA);
+        w.pinB.getWorldPosition(worldB);
+
+        scene.remove(w.mesh);
+        w.mesh.geometry.dispose();
+
+        const curve = new THREE.LineCurve3(worldA, worldB);
+        const tubeGeo = new THREE.TubeGeometry(curve, 20, 0.03, 8, false);
+        w.mesh = new THREE.Mesh(tubeGeo, w.mesh.material);
+        scene.add(w.mesh);
+      });
+    }
+
+    // --- Interaction & Dragging & Camera Orbit ---
+    function onPointerDown(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      if (event.button === 2 || event.shiftKey) {
+        isOrbiting = true;
+        previousMousePosition = { x: event.clientX, y: event.clientY };
+        return;
+      }
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(scene.children, true);
+
+      if (intersects.length > 0) {
+        let hit = intersects[0];
+        
+        // Check if pin clicked in wire mode
+        if (editMode === 'wire' && hit.object.userData && hit.object.userData.isPin) {
+          const clickedPin = hit.object;
+          if (!wireStartPin) {
+            wireStartPin = clickedPin;
+            clickedPin.material.color.setHex(0xef4444); // Highlight start pin
+          } else {
+            createWire(wireStartPin, clickedPin);
+            wireStartPin.material.color.setHex(0xf59e0b);
+            wireStartPin = null;
+          }
+          return;
+        }
+
+        let obj = hit.object;
+        while (obj.parent && obj.parent !== scene) {
+          if (components.includes(obj.parent)) {
+            obj = obj.parent;
+            break;
+          }
+          obj = obj.parent;
+        }
+
+        if (components.includes(obj)) {
+          if (editMode === 'delete') {
+            // Delete component and attached wires
+            obj.traverse(child => {
+              if (child.userData && child.userData.isPin) {
+                wires = wires.filter(w => {
+                  if (w.pinA === child || w.pinB === child) {
+                    scene.remove(w.mesh);
+                    return false;
+                  }
+                  return true;
+                });
+              }
+            });
+            scene.remove(obj);
+            components = components.filter(c => c !== obj);
+            if (selectedComponent === obj) {
+              selectedComponent = null;
+              updateInspector();
+              document.getElementById('selectedId').innerText = '선택 없음';
+            }
+            return;
+          }
+
+          selectComponent(obj);
+          if (editMode === 'move') {
+            isDragging = true;
+            const planeIntersect = raycaster.intersectObject(dragPlane);
+            if (planeIntersect.length > 0) {
+              dragOffset.copy(planeIntersect[0].point).sub(obj.position);
+            }
+          }
+        }
+      } else if (editMode === 'move' && event.button === 0) {
+        isOrbiting = true;
+        previousMousePosition = { x: event.clientX, y: event.clientY };
+      }
+    }
+
+    function onPointerMove(event) {
+      if (isOrbiting) {
+        const deltaX = event.clientX - previousMousePosition.x;
+        const deltaY = event.clientY - previousMousePosition.y;
+
+        cameraSpherical.theta -= deltaX * 0.008;
+        cameraSpherical.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, cameraSpherical.phi - deltaY * 0.008));
+        updateCameraPosition();
+
+        previousMousePosition = { x: event.clientX, y: event.clientY };
+        return;
+      }
+
+      if (!isDragging || !selectedComponent || editMode !== 'move') return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObject(dragPlane);
+      if (intersects.length > 0) {
+        selectedComponent.position.copy(intersects[0].point).sub(dragOffset);
+        selectedComponent.position.y = 0.2;
+        updateWires();
+      }
+    }
+
+    function onPointerUp() {
+      isDragging = false;
+      isOrbiting = false;
+    }
+
+    function onWheel(event) {
+      event.preventDefault();
+      cameraSpherical.radius = Math.max(8, Math.min(50, cameraSpherical.radius + event.deltaY * 0.03));
+      updateCameraPosition();
+    }
+
+    function selectComponent(comp) {
+      selectedComponent = comp;
+      document.getElementById('selectedId').innerText = comp.userData.id;
+      updateInspector();
+    }
+
+    function updateInspector() {
+      const container = document.getElementById('inspectorContent');
+      if (!selectedComponent) {
+        container.innerHTML = `
+          <div class="text-center py-16 text-slate-500">
+            <i class="fa-solid fa-cube text-4xl mb-3 text-slate-700/80"></i>
+            <p class="text-xs font-medium text-slate-400">3D 공간에서 부품을 선택하세요.</p>
+            <p class="text-[11px] text-slate-600 mt-1">회로 연결 핀 확인 및 실시간 수치를 제어합니다.</p>
+          </div>`;
+        return;
+      }
+
+      const data = selectedComponent.userData;
+      container.innerHTML = `
+        <div class="space-y-4">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1.5">부품 종류</label>
+            <input type="text" readonly value="${data.type.toUpperCase()}" class="w-full bg-slate-950 border border-slate-800 px-3 py-2.5 rounded-xl text-xs text-slate-300 font-mono">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1.5">고유 ID</label>
+            <input type="text" value="${data.id}" onchange="selectedComponent.userData.id=this.value" class="w-full bg-slate-950 border border-slate-800 px-3 py-2.5 rounded-xl text-xs text-slate-300 font-mono">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1.5">규격 및 값</label>
+            <input type="text" value="${data.value}" onchange="selectedComponent.userData.value=this.value" class="w-full bg-slate-950 border border-slate-800 px-3 py-2.5 rounded-xl text-xs text-slate-300 font-mono">
+          </div>
+          <div class="pt-2 border-t border-slate-800 grid grid-cols-2 gap-2 text-xs">
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <span class="text-slate-500 block text-[10px] mb-0.5">인가 전압 / 전류</span>
+              <span class="text-cyan-400 font-mono font-bold">${data.voltage.toFixed(1)}V / ${data.current.toFixed(2)}A</span>
+            </div>
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <span class="text-slate-500 block text-[10px] mb-0.5">소자 온도</span>
+              <span class="text-orange-400 font-mono font-bold">${(data.temp + envTemp).toFixed(1)} °C</span>
+            </div>
+          </div>
+          <button onclick="deleteSelected()" class="w-full py-2.5 bg-red-950/40 hover:bg-red-900/50 border border-red-800/60 text-red-300 rounded-xl font-medium transition text-xs mt-2 shadow-sm">
+            <i class="fa-solid fa-trash-can mr-1.5"></i> 부품 삭제
+          </button>
+        </div>`;
+    }
+
+    function deleteSelected() {
+      if (!selectedComponent) return;
+      selectedComponent.traverse(child => {
+        if (child.userData && child.userData.isPin) {
+          wires = wires.filter(w => {
+            if (w.pinA === child || w.pinB === child) {
+              scene.remove(w.mesh);
+              return false;
+            }
+            return true;
+          });
+        }
+      });
+      scene.remove(selectedComponent);
+      components = components.filter(c => c !== selectedComponent);
+      selectedComponent = null;
+      updateInspector();
+      document.getElementById('selectedId').innerText = '선택 없음';
+    }
+
+    function clearCircuit() {
+      wires.forEach(w => scene.remove(w.mesh));
+      wires = [];
+      components.forEach(c => scene.remove(c));
+      components = [];
+      selectedComponent = null;
+      updateInspector();
+      document.getElementById('selectedId').innerText = '선택 없음';
+    }
+
+    function resetCamera() {
+      cameraSpherical = { radius: 25, theta: Math.PI / 4, phi: Math.PI / 3 };
+      cameraTarget.set(0, 0, 0);
+      updateCameraPosition();
+    }
+
+    function updateEnvironment(type, val) {
+      if (type === 'lux') {
+        envLux = parseInt(val);
+        document.getElementById('luxVal').innerText = val + ' Lux';
+      } else if (type === 'temp') {
+        envTemp = parseInt(val);
+        document.getElementById('tempVal').innerText = val + ' °C';
+      }
+    }
+
+    function toggleThermalMode() {
+      thermalMode = !thermalMode;
+      const statusEl = document.getElementById('thermalStatus');
+      statusEl.innerText = thermalMode ? 'ON' : 'OFF';
+      statusEl.className = thermalMode ? 'text-orange-400 font-bold' : 'text-slate-400';
+    }
+
+    function onWindowResize() {
+      const container = document.getElementById('threeCanvas');
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    }
+
+    // --- Physics & Circuit Simulation Engine ---
+    function simulateCircuit() {
+      if (!simulationRunning) return;
+
+      // Simple graph traversal for closed loops with 9V Battery
+      let battery = components.find(c => c.userData.type === 'battery');
+      let hasClosedLoop = false;
+      
+      if (battery) {
+        let pPos = battery.userData.pins[0]; // +
+        let pNeg = battery.userData.pins[1]; // -
+        
+        // Trace connected path from Battery +
+        let visitedPins = new Set();
+        let queue = [pPos];
+        visitedPins.add(pPos);
+
+        while(queue.length > 0) {
+          let currentPin = queue.shift();
+          if (currentPin === pNeg) {
+            hasClosedLoop = true;
+            break;
+          }
+          // Find wires connected to currentPin
+          currentPin.userData.connectedWires.forEach(w => {
+            let nextPin = (w.pinA === currentPin) ? w.pinB : w.pinA;
+            if (!visitedPins.has(nextPin)) {
+              visitedPins.add(nextPin);
+              queue.push(nextPin);
+              // Also add sibling pins of the same component
+              nextPin.userData.parentComponent.userData.pins.forEach(siblingPin => {
+                if (!visitedPins.has(siblingPin)) {
+                  visitedPins.add(siblingPin);
+                  queue.push(siblingPin);
+                }
+              });
+            }
+          });
+        }
+      }
+
+      // Update components electrical state based on loop closure
+      components.forEach(c => {
+        if (c.userData.type === 'battery') {
+          c.userData.voltage = 9.0;
+          c.userData.current = hasClosedLoop ? 0.041 : 0.0;
+          c.userData.power = c.userData.voltage * c.userData.current;
+        } else if (hasClosedLoop) {
+          c.userData.voltage = 3.0;
+          c.userData.current = 0.041;
+          c.userData.power = 0.12;
+          c.userData.temp = 35;
+
+          // LED activation effect
+          if (c.userData.type === 'led') {
+            const dome = c.children[0];
+            if (dome && dome.material) {
+              dome.material.emissive.setHex(0xff0000);
+            }
+          }
+          // Buzzer sound / animation simulation
+          if (c.userData.type === 'buzzer') {
+            c.position.y = 0.2 + Math.sin(Date.now() * 0.02) * 0.03;
+          }
+        } else {
+          c.userData.voltage = 0.0;
+          c.userData.current = 0.0;
+          c.userData.power = 0.0;
+          c.userData.temp = 25;
+
+          if (c.userData.type === 'led') {
+            const dome = c.children[0];
+            if (dome && dome.material) {
+              dome.material.emissive.setHex(0x330000);
+            }
+          }
+        }
+      });
+    }
+
+    let lastTime = performance.now();
+    let frameCount = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+
+      simulateCircuit();
+
+      frameCount++;
+      const now = performance.now();
+      if (now - lastTime >= 1000) {
+        document.getElementById('fpsCounter').innerText = frameCount + ' FPS';
+        frameCount = 0;
+        lastTime = now;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    window.onload = initThree;
+  </script>
+</body>
+</html>
